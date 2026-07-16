@@ -88,6 +88,22 @@ $httpClient.get({ url: parallelUrl, headers: parallelHeaders, timeout: 10 }, fun
     const translatedJson = JSON.parse(data);
     mergeTranslatable(originalJson, translatedJson);
 
+    // 诊断：看一下顶层结构 + 第一个 shelf 的第一个 item 完整长什么样，
+    // 找到卡片标题真正的字段路径。排查完成后可以删掉这一段。
+    const topData = originalJson.data || originalJson;
+    console.log(`[TV CanvasTranslate] data 顶层 keys: ${JSON.stringify(Object.keys(topData))}`);
+    if (topData.playables) {
+      const isArr = Array.isArray(topData.playables);
+      console.log(`[TV CanvasTranslate] data.playables 是否数组: ${isArr}, 数量/keys: ${isArr ? topData.playables.length : JSON.stringify(Object.keys(topData.playables).slice(0, 5))}`);
+    }
+    if (topData.canvas && Array.isArray(topData.canvas.shelves) && topData.canvas.shelves[0]) {
+      const shelf0 = topData.canvas.shelves[0];
+      console.log(`[TV CanvasTranslate] shelves[0] keys: ${JSON.stringify(Object.keys(shelf0))}`);
+      if (Array.isArray(shelf0.items) && shelf0.items[0]) {
+        console.log(`[TV CanvasTranslate] shelves[0].items[0] 完整内容(前600字符): ${JSON.stringify(shelf0.items[0]).slice(0, 600)}`);
+      }
+    }
+
     const newBody = JSON.stringify(originalJson);
     const respHeaders = Object.assign({}, $response.headers || {});
     for (const k of Object.keys(respHeaders)) {
