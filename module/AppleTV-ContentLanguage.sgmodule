@@ -1,0 +1,14 @@
+#!name = Apple TV 内容语言切换
+#!desc = 强制 Apple TV app 使用指定地区目录：首页/浏览/搜索直接切换；剧集/电影详情页通过并行请求合并文本(简介/演员/分类)，同时保留真实日区身份用于播放，避免"无法播放此视频"。已知限制：详情页顶部大标题、单集简介以外的分集标题信息条不受影响，仍为原始语言。iOS / tvOS 通用。
+#!category = Custom
+#!arguments = region:"hk"
+#!arguments-desc = region: 目标地区，可选 hk（繁中·已验证）/ tw（繁中·已验证）/ jp（还原日区/相当于关闭）
+
+[Script]
+TV Force Region = type=http-request, pattern=^https?:\/\/uts-api\.itunes\.apple\.com\/uts\/v3\/(canvases|search|collections|shelves|user\/settings|contents\/[^\/]+\/personalized-flags)(\/|\?|$), requires-body=0, max-size=0, script-path=https://gist.githubusercontent.com/kuroidark/d0227ca776ba769c634c499116c2b7e6/raw/b1f0d982acfe9ab40c695d94040bd37c61d22046/tv-force-region.js, argument=region="{{{region}}}"
+TV Translate Show Detail = type=http-response, pattern=^https?:\/\/uts-api\.itunes\.apple\.com\/uts\/v3\/shows\/[^\/]+(\?|$), requires-body=1, max-size=2097152, timeout=20, script-path=https://gist.githubusercontent.com/kuroidark/7aeba0a8ffa5ed7d4f93a0994edb15ac/raw/e2dde03fd503356b7cd761e6e9a6480a19a80a29/shows-detail-translate.js, argument=region="{{{region}}}"
+TV Translate Episodes = type=http-response, pattern=^https?:\/\/uts-api\.itunes\.apple\.com\/uts\/v3\/shows\/[^\/]+\/episodes(\?|$), requires-body=1, max-size=2097152, timeout=20, script-path=https://gist.githubusercontent.com/kuroidark/eb6d21c0e2d291b099fc8a45535e9aa4/raw/73e4bc33cade6371f38231ad9493c169451af19e/episodes-translate.js, argument=region="{{{region}}}"
+TV Translate Movie Detail = type=http-response, pattern=^https?:\/\/uts-api\.itunes\.apple\.com\/uts\/v3\/movies\/[^\/]+(\?|$), requires-body=1, max-size=2097152, timeout=20, script-path=https://gist.githubusercontent.com/kuroidark/75f557994e03810f7b0b9dae201db600/raw/81840836b506476cd8e5dcb2e9a7f54bf7520c7a/movie-detail-translate.js, argument=region="{{{region}}}"
+
+[MITM]
+hostname = %APPEND% uts-api.itunes.apple.com
