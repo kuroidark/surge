@@ -99,8 +99,9 @@ $httpClient.get({ url: parallelUrl, headers: parallelHeaders, timeout: 10 }, fun
     if (topData.canvas && Array.isArray(topData.canvas.shelves) && topData.canvas.shelves[0]) {
       const shelf0 = topData.canvas.shelves[0];
       console.log(`[TV CanvasTranslate] shelves[0] keys: ${JSON.stringify(Object.keys(shelf0))}`);
-      if (Array.isArray(shelf0.items) && shelf0.items[0]) {
-        console.log(`[TV CanvasTranslate] shelves[0].items[0] 完整内容(前600字符): ${JSON.stringify(shelf0.items[0]).slice(0, 600)}`);
+      if (Array.isArray(shelf0.items)) {
+        const titleSamples = shelf0.items.slice(0, 5).map((it, i) => `[${i}] title="${it && it.title}" genres=${JSON.stringify((it && it.genres || []).map(g => g.name))}`);
+        console.log(`[TV CanvasTranslate] items title/genres 样本: ${JSON.stringify(titleSamples)}`);
       }
     }
 
