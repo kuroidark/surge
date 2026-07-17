@@ -75,10 +75,17 @@ async function checkChatGPT() {
 async function checkClaude() {
   try {
     const res = await httpGet("https://claude.ai/");
-    if (res.status === 403 || /not available in your country|unsupported_country/i.test(res.body)) {
+    // 只有命中明确的地区封锁文案才判定为受限。
+    // 裸 403/无内容 不能作为可靠信号——Cloudflare 常对非浏览器请求(无 JS 执行、
+    // 无真实浏览器指纹)直接拦截,和真实地区状态无关,详见官方排障文档。
+    const blockedText = /only available in certain regions|app unavailable|unsupported_country/i;
+    if (blockedText.test(res.body)) {
       return { name: "Claude", status: "❌ 地区受限" };
     }
     if (res.status === 200) return { name: "Claude", status: "✅ 可用" };
+    if (res.status === 403) {
+      return { name: "Claude", status: "❓ 无法确认(可能是 Cloudflare 拦截自动化请求,非真实地区状态)" };
+    }
     return { name: "Claude", status: `❓ 未知 (${res.status})` };
   } catch (e) {
     return { name: "Claude", status: `❌ 请求异常 (${e})` };
