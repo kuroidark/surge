@@ -3,8 +3,6 @@
  *
  * 本脚本本身不含任何密钥，所有敏感信息通过 Surge 模块的 #!arguments
  * 由用户在启用模块时填入，脚本运行时通过 $argument 读取。
- *
- * 可安全托管在公开仓库。
  */
 
 function parseArgument(raw) {
@@ -164,7 +162,7 @@ if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
     const content =
       "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
       "下次重置: " + resetDateStr + "\n" +
-      "到期/续费日: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
+      "到期: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
       "状态: " + json.status;
 
     $done({
