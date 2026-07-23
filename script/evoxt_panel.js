@@ -99,6 +99,8 @@ const PRIKEY = args.prikey || "";
 const SERVICE_ID = args.serviceid || "";
 const POLICY = args.policy || ""; // 走哪个代理策略/策略组发起请求，留空则走当前规则匹配结果
 
+const MAX_ATTEMPTS = 2; // 请求失败/超时时的最大尝试次数（含首次）
+
 if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
   fail("模块参数未填写完整，请在模块设置里填写 USERNAME / PUBKEY / PRIKEY / SERVICEID");
 } else {
@@ -112,18 +114,23 @@ if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
   const requestOptions = {
     url: url,
     headers: { Authorization: "Basic " + authToken },
-    timeout: 15 // 单次请求超时（秒），默认只有 5 秒，容易在多跳代理下超时
+    timeout: 20 // 单次请求超时（秒），默认只有 5 秒，多跳代理下容易不够
   };
 
-  // 显式指定出口策略，确保请求走到白名单允许的那台服务器
-  // POLICY 需要填 Surge 配置里已存在的策略名或策略组名（比如你的 Snell 服务器对应的策略名）
   if (POLICY && POLICY.toUpperCase() !== "AUTO") {
     requestOptions.policy = POLICY;
   }
 
-  $httpClient.get(requestOptions, function (error, response, data) {
+  function handleResponse(error, response, data, attempt) {
     if (error) {
-      fail("请求失败: " + error);
+      if (attempt < MAX_ATTEMPTS) {
+        // 超时/失败自动重试一次，缓解多跳代理偶发延迟问题
+        $httpClient.get(requestOptions, function (err2, res2, data2) {
+          handleResponse(err2, res2, data2, attempt + 1);
+        });
+        return;
+      }
+      fail("请求失败（已重试 " + (attempt - 1) + " 次）: " + error);
       return;
     }
 
@@ -157,6 +164,7 @@ if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
     const content =
       "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
       "下次重置: " + resetDateStr + "\n" +
+      "到期/续费日: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
       "状态: " + json.status;
 
     $done({
@@ -165,5 +173,9 @@ if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
       icon: icon,
       "icon-color": color
     });
+  }
+
+  $httpClient.get(requestOptions, function (error, response, data) {
+    handleResponse(error, response, data, 1);
   });
 }
