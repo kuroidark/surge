@@ -97,6 +97,7 @@ const USERNAME = args.username || "";
 const PUBKEY = args.pubkey || "";
 const PRIKEY = args.prikey || "";
 const SERVICE_ID = args.serviceid || "";
+const POLICY = args.policy || ""; // 走哪个代理策略/策略组发起请求，留空则走当前规则匹配结果
 
 if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
   fail("模块参数未填写完整，请在模块设置里填写 USERNAME / PUBKEY / PRIKEY / SERVICEID");
@@ -108,55 +109,61 @@ if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
     "&serviceid=" +
     encodeURIComponent(SERVICE_ID);
 
-  $httpClient.get(
-    {
-      url: url,
-      headers: { Authorization: "Basic " + authToken }
-    },
-    function (error, response, data) {
-      if (error) {
-        fail("请求失败: " + error);
-        return;
-      }
+  const requestOptions = {
+    url: url,
+    headers: { Authorization: "Basic " + authToken },
+    timeout: 15 // 单次请求超时（秒），默认只有 5 秒，容易在多跳代理下超时
+  };
 
-      let json;
-      try {
-        json = JSON.parse(data);
-      } catch (e) {
-        fail("响应解析失败");
-        return;
-      }
+  // 显式指定出口策略，确保请求走到白名单允许的那台服务器
+  // POLICY 需要填 Surge 配置里已存在的策略名或策略组名（比如你的 Snell 服务器对应的策略名）
+  if (POLICY && POLICY.toUpperCase() !== "AUTO") {
+    requestOptions.policy = POLICY;
+  }
 
-      if (json.error) {
-        fail("接口错误: " + json.error);
-        return;
-      }
-
-      const total = parseFloat(json.bandwidth);
-      const used = parseFloat(json.used_bandwidth);
-      const percent = total > 0 ? (used / total) * 100 : 0;
-      const resetDateStr = nextResetDate(json.regdate);
-
-      let icon = "chart.bar.fill";
-      let color = "#34C759"; // 绿色
-      if (percent >= 90) {
-        icon = "exclamationmark.triangle.fill";
-        color = "#FF3B30"; // 红色
-      } else if (percent >= 70) {
-        color = "#FF9500"; // 橙色
-      }
-
-      const content =
-        "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
-        "下次重置: " + resetDateStr + "\n" +
-        "状态: " + json.status;
-
-      $done({
-        title: "Evoxt 流量",
-        content: content,
-        icon: icon,
-        "icon-color": color
-      });
+  $httpClient.get(requestOptions, function (error, response, data) {
+    if (error) {
+      fail("请求失败: " + error);
+      return;
     }
-  );
+
+    let json;
+    try {
+      json = JSON.parse(data);
+    } catch (e) {
+      fail("响应解析失败");
+      return;
+    }
+
+    if (json.error) {
+      fail("接口错误: " + json.error);
+      return;
+    }
+
+    const total = parseFloat(json.bandwidth);
+    const used = parseFloat(json.used_bandwidth);
+    const percent = total > 0 ? (used / total) * 100 : 0;
+    const resetDateStr = nextResetDate(json.regdate);
+
+    let icon = "chart.bar.fill";
+    let color = "#34C759"; // 绿色
+    if (percent >= 90) {
+      icon = "exclamationmark.triangle.fill";
+      color = "#FF3B30"; // 红色
+    } else if (percent >= 70) {
+      color = "#FF9500"; // 橙色
+    }
+
+    const content =
+      "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
+      "下次重置: " + resetDateStr + "\n" +
+      "状态: " + json.status;
+
+    $done({
+      title: "Evoxt 流量",
+      content: content,
+      icon: icon,
+      "icon-color": color
+    });
+  });
 }
