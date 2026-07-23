@@ -1,5 +1,5 @@
 #!name=Evoxt 流量面板
-#!desc=显示 Evoxt VPS 的流量使用量、占比及下次流量重置日期。安装后请在参数设置里填写你的账号信息，密钥仅保存在本地，不会上传。
+#!desc=显示 Evoxt VPS 的流量使用量、占比、下次流量重置日期和服务器到期日期。安装后请在参数设置里填写你的账号信息。
 #!category=Panel
 #!author=Ryuu
 #!arguments=USERNAME:"your_username",PUBKEY:"your_public_key",PRIKEY:"your_private_key",SERVICEID:"your_service_id",POLICY:"AUTO"
