@@ -1,0 +1,11 @@
+#!name=Evoxt 流量面板
+#!desc=显示 Evoxt VPS 的流量使用量、占比及下次流量重置日期。安装后请在参数设置里填写你的账号信息，密钥仅保存在本地，不会上传。
+#!category=Panel
+#!arguments=USERNAME:,PUBKEY:,PRIKEY:,SERVICEID:
+#!arguments-desc=1️⃣ USERNAME\n\n你的 Evoxt 账号用户名\n\n2️⃣ PUBKEY\n\nAPI 凭据页面的 Public Key\n\n3️⃣ PRIKEY\n\nAPI 凭据页面的 Private Key\n\n4️⃣ SERVICEID\n\n服务器的数字 Service ID（在客户后台该服务器详情页 URL 的 id= 参数里能找到，不是套餐名称）\n\n⚠️ 使用前请先在 Evoxt 后台 API 凭据页面把本机/客户端出口 IP 加入白名单
+
+[Script]
+evoxt-panel = type=generic, script-path=https://raw.githubusercontent.com/kuroidark/surge/refs/heads/main/script/evoxt_panel.js, timeout=15, argument=username={{{USERNAME}}}&pubkey={{{PUBKEY}}}&prikey={{{PRIKEY}}}&serviceid={{{SERVICEID}}}
+
+[Panel]
+Evoxt流量 = script-name=evoxt-panel, update-interval=1800
