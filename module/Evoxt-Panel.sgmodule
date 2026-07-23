@@ -1,5 +1,3 @@
-# https://raw.githubusercontent.com/kuroidark/surge/refs/heads/main/script/evoxt_panel.js
-
 #!name=Evoxt 流量面板
 #!desc=显示 Evoxt VPS 的流量使用量、占比及下次流量重置日期。安装后请在参数设置里填写你的账号信息，密钥仅保存在本地，不会上传。
 #!category=Panel
