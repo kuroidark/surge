@@ -3,6 +3,8 @@
  *
  * 本脚本本身不含任何密钥，所有敏感信息通过 Surge 模块的 #!arguments
  * 由用户在启用模块时填入，脚本运行时通过 $argument 读取。
+ * 支持任意数量服务器（同一账号下），SERVICEIDS 用逗号分隔。
+ *
  */
 
 function parseArgument(raw) {
@@ -94,86 +96,141 @@ const args = parseArgument(rawArgument);
 const USERNAME = args.username || "";
 const PUBKEY = args.pubkey || "";
 const PRIKEY = args.prikey || "";
-const SERVICE_ID = args.serviceid || "";
-const POLICY = args.policy || ""; // 走哪个代理策略/策略组发起请求，留空则走当前规则匹配结果
+const POLICY = args.policy || "";
 
-const MAX_ATTEMPTS = 2; // 请求失败/超时时的最大尝试次数（含首次）
+// SERVICEIDS: 逗号分隔的多个 Service ID，例如 "880424,880501,880777"
+const SERVICE_IDS = (args.serviceids || "")
+  .split(",")
+  .map(function (s) { return s.trim(); })
+  .filter(function (s) { return s.length > 0; });
 
-if (!USERNAME || !PUBKEY || !PRIKEY || !SERVICE_ID) {
-  fail("模块参数未填写完整，请在模块设置里填写 USERNAME / PUBKEY / PRIKEY / SERVICEID");
+const MAX_ATTEMPTS = 2;
+
+if (!USERNAME || !PUBKEY || !PRIKEY || SERVICE_IDS.length === 0) {
+  fail("模块参数未填写完整，请在模块设置里填写 USERNAME / PUBKEY / PRIKEY / SERVICEIDS");
 } else {
   const authToken = base64Encode(PUBKEY + ":" + PRIKEY);
-  const url =
-    "https://api.evoxt.com/listserver?username=" +
-    encodeURIComponent(USERNAME) +
-    "&serviceid=" +
-    encodeURIComponent(SERVICE_ID);
 
-  const requestOptions = {
-    url: url,
-    headers: { Authorization: "Basic " + authToken },
-    timeout: 20 // 单次请求超时（秒），默认只有 5 秒，多跳代理下容易不够
-  };
+  function buildOptions(serviceId) {
+    const url =
+      "https://api.evoxt.com/listserver?username=" +
+      encodeURIComponent(USERNAME) +
+      "&serviceid=" +
+      encodeURIComponent(serviceId);
 
-  if (POLICY && POLICY.toUpperCase() !== "AUTO") {
-    requestOptions.policy = POLICY;
+    const opts = {
+      url: url,
+      headers: { Authorization: "Basic " + authToken },
+      timeout: 20
+    };
+    if (POLICY && POLICY.toUpperCase() !== "AUTO") {
+      opts.policy = POLICY;
+    }
+    return opts;
   }
 
-  function handleResponse(error, response, data, attempt) {
-    if (error) {
-      if (attempt < MAX_ATTEMPTS) {
-        // 超时/失败自动重试一次，缓解多跳代理偶发延迟问题
-        $httpClient.get(requestOptions, function (err2, res2, data2) {
-          handleResponse(err2, res2, data2, attempt + 1);
-        });
-        return;
-      }
-      fail("请求失败（已重试 " + (attempt - 1) + " 次）: " + error);
-      return;
+  // 查询单台服务器，内置重试；结果通过 callback(result) 返回，永远不抛错
+  function fetchServer(serviceId, callback) {
+    const opts = buildOptions(serviceId);
+
+    function attempt(n) {
+      $httpClient.get(opts, function (error, response, data) {
+        if (error) {
+          if (n < MAX_ATTEMPTS) {
+            attempt(n + 1);
+            return;
+          }
+          callback({ ok: false, message: serviceId + " 请求失败: " + error });
+          return;
+        }
+
+        let json;
+        try {
+          json = JSON.parse(data);
+        } catch (e) {
+          callback({ ok: false, message: serviceId + " 响应解析失败" });
+          return;
+        }
+
+        if (json.error) {
+          callback({ ok: false, message: serviceId + " 接口错误: " + json.error });
+          return;
+        }
+
+        callback({ ok: true, data: json });
+      });
     }
 
-    let json;
-    try {
-      json = JSON.parse(data);
-    } catch (e) {
-      fail("响应解析失败");
-      return;
-    }
+    attempt(1);
+  }
 
-    if (json.error) {
-      fail("接口错误: " + json.error);
-      return;
-    }
-
+  function formatServer(json) {
     const total = parseFloat(json.bandwidth);
     const used = parseFloat(json.used_bandwidth);
     const percent = total > 0 ? (used / total) * 100 : 0;
     const resetDateStr = nextResetDate(json.regdate);
 
-    let icon = "chart.bar.fill";
-    let color = "#34C759"; // 绿色
-    if (percent >= 90) {
-      icon = "exclamationmark.triangle.fill";
-      color = "#FF3B30"; // 红色
-    } else if (percent >= 70) {
-      color = "#FF9500"; // 橙色
-    }
+    const label = json.hostname || json.label || json.id;
 
-    const content =
+    const text =
+      "【" + label + "】\n" +
       "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
       "下次重置: " + resetDateStr + "\n" +
-      "到期: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
+      "到期/续费日: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
       "状态: " + json.status;
+
+    return { text: text, percent: percent };
+  }
+
+  // 依次串行查询 SERVICE_IDS 里的每一台，全部完成后调用 onDone(results)
+  function fetchAll(serviceIds, index, results, onDone) {
+    if (index >= serviceIds.length) {
+      onDone(results);
+      return;
+    }
+    fetchServer(serviceIds[index], function (result) {
+      results.push(result);
+      fetchAll(serviceIds, index + 1, results, onDone);
+    });
+  }
+
+  function finalize(results) {
+    const blocks = [];
+    let maxPercent = 0;
+    let hasOk = false;
+
+    results.forEach(function (r) {
+      if (r.ok) {
+        hasOk = true;
+        const f = formatServer(r.data);
+        blocks.push(f.text);
+        if (f.percent > maxPercent) maxPercent = f.percent;
+      } else {
+        blocks.push("⚠️ " + r.message);
+      }
+    });
+
+    if (!hasOk) {
+      fail(blocks.join("\n"));
+      return;
+    }
+
+    let icon = "chart.bar.fill";
+    let color = "#34C759";
+    if (maxPercent >= 90) {
+      icon = "exclamationmark.triangle.fill";
+      color = "#FF3B30";
+    } else if (maxPercent >= 70) {
+      color = "#FF9500";
+    }
 
     $done({
       title: "Evoxt 流量",
-      content: content,
+      content: blocks.join("\n\n"),
       icon: icon,
       "icon-color": color
     });
   }
 
-  $httpClient.get(requestOptions, function (error, response, data) {
-    handleResponse(error, response, data, 1);
-  });
+  fetchAll(SERVICE_IDS, 0, [], finalize);
 }
