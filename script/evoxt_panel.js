@@ -5,6 +5,7 @@
  * 由用户在启用模块时填入，脚本运行时通过 $argument 读取。
  * 支持任意数量服务器（同一账号下），SERVICEIDS 用逗号分隔。
  *
+ * 可安全托管在公开仓库。
  */
 
 function parseArgument(raw) {
@@ -123,7 +124,8 @@ if (!USERNAME || !PUBKEY || !PRIKEY || SERVICE_IDS.length === 0) {
     const opts = {
       url: url,
       headers: { Authorization: "Basic " + authToken },
-      timeout: 20
+      timeout: 12 // 单次请求超时（秒）；配合最多2次重试，单台服务器最坏耗时约24秒，
+                  // 需小于 [Script] 行里声明的 timeout，避免脚本被提前杀掉
     };
     if (POLICY && POLICY.toUpperCase() !== "AUTO") {
       opts.policy = POLICY;
