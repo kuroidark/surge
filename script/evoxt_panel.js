@@ -98,9 +98,11 @@ const PUBKEY = args.pubkey || "";
 const PRIKEY = args.prikey || "";
 const POLICY = args.policy || "";
 
-// SERVICEIDS: 逗号分隔的多个 Service ID，例如 "880424,880501,880777"
+// SERVICEIDS: 用竖线 | 分隔的多个 Service ID，例如 "880424|880501|880777"
+// 注意：不能用逗号分隔——逗号是 Surge 模块 [Script] 行本身的字段分隔符，
+// 一旦替换进 argument= 的值里会打乱整行解析，导致 $argument 读取失败。
 const SERVICE_IDS = (args.serviceids || "")
-  .split(",")
+  .split("|")
   .map(function (s) { return s.trim(); })
   .filter(function (s) { return s.length > 0; });
 
