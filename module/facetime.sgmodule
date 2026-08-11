@@ -1,0 +1,18 @@
+#!name = FaceTime & Screen Sharing Proxy
+#!desc = 强制 FaceTime 通话、屏幕共享及相关信令走指定策略组，避免走 DIRECT 导致丢包卡顿。安装后点击模块的"配置"图标即可直接填参数，无需改文件本身。
+#!category = Network
+#!system = mac
+
+#!arguments=policy:Proxy,fallback:DIRECT
+#!arguments-desc=【policy】填写你 Surge 里已存在的策略组名称（如 Proxy、节点选择），FaceTime 相关进程都会走这个策略。\n\n【fallback】IP 段兜底规则(17.0.0.0/8,涵盖所有 Apple 服务器)使用的策略。\n- 默认值 DIRECT = 关闭兜底,不代理整个 Apple IP 段,只靠上面的 PROCESS-NAME 精准匹配\n- 想开启兜底时,把这里改成和 policy 完全相同的策略组名称即可
+
+[Rule]
+PROCESS-NAME,FaceTime,%policy%
+PROCESS-NAME,avconferenced,%policy%
+PROCESS-NAME,callservicesd,%policy%
+PROCESS-NAME,identityservicesd,%policy%
+PROCESS-NAME,apsd,%policy%
+PROCESS-NAME,sharingd,%policy%
+PROCESS-NAME,rapportd,%policy%
+PROCESS-NAME,CommCenter,%policy%
+IP-CIDR,17.0.0.0/8,%fallback%,no-resolve
