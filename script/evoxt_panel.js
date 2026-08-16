@@ -81,6 +81,52 @@ function nextResetDate(regdate) {
   return y + "-" + m + "-" + d;
 }
 
+function formatDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + dd;
+}
+
+// 计算当前流量周期信息：周期结束 = 下次重置日，周期开始 = 结束日往前推一个月，
+// 返回周期结束日期字符串，以及"周期已过去的时间占比"
+function getCycleInfo(regdate) {
+  const parts = regdate.split("-").map(Number);
+  const regDay = parts[2];
+  const now = new Date();
+
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  let cycleEnd = makeDate(year, month, regDay);
+
+  if (cycleEnd <= now) {
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+    cycleEnd = makeDate(year, month, regDay);
+  }
+
+  let startMonth = cycleEnd.getMonth() - 1;
+  let startYear = cycleEnd.getFullYear();
+  if (startMonth < 0) {
+    startMonth = 11;
+    startYear -= 1;
+  }
+  const cycleStart = makeDate(startYear, startMonth, regDay);
+
+  const totalMs = cycleEnd.getTime() - cycleStart.getTime();
+  const elapsedMs = now.getTime() - cycleStart.getTime();
+  const elapsedPercent =
+    totalMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100)) : 0;
+
+  return {
+    resetDateStr: formatDate(cycleEnd),
+    elapsedPercent: elapsedPercent
+  };
+}
+
 function fail(msg) {
   $done({
     title: "Evoxt 流量",
@@ -172,14 +218,14 @@ if (!USERNAME || !PUBKEY || !PRIKEY || SERVICE_IDS.length === 0) {
     const total = parseFloat(json.bandwidth);
     const used = parseFloat(json.used_bandwidth);
     const percent = total > 0 ? (used / total) * 100 : 0;
-    const resetDateStr = nextResetDate(json.regdate);
+    const cycle = getCycleInfo(json.regdate);
 
     const label = json.hostname || json.label || json.id;
 
     const text =
       "【" + label + "】\n" +
-      "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "%)\n" +
-      "下次重置: " + resetDateStr + "\n" +
+      "已用 " + used + " / " + total + " GB (" + percent.toFixed(1) + "% | " + cycle.elapsedPercent.toFixed(1) + "%)\n" +
+      "下次重置: " + cycle.resetDateStr + "\n" +
       "到期/续费日: " + json.nextduedate + " (" + json.billingcycle + ")\n" +
       "状态: " + json.status;
 
