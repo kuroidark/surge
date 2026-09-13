@@ -1,0 +1,94 @@
+name: Update Google IPs
+
+on:
+  schedule:
+    # 每日 03:00 UTC
+    - cron: "0 3 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-google-ips:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download goog.json
+        run: |
+          curl -fsSL \
+            https://www.gstatic.com/ipranges/goog.json \
+            -o /tmp/goog.json
+
+      - name: Generate Surge ruleset
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path("/tmp/goog.json")
+          output = Path("ruleset/google-IPs.conf")
+
+          with source.open("r", encoding="utf-8") as f:
+              data = json.load(f)
+
+          ipv4 = []
+          ipv6 = []
+
+          for prefix in data.get("prefixes", []):
+              if "ipv4Prefix" in prefix:
+                  ipv4.append(prefix["ipv4Prefix"])
+              elif "ipv6Prefix" in prefix:
+                  ipv6.append(prefix["ipv6Prefix"])
+
+          # 排序，确保每次生成结果稳定
+          ipv4.sort()
+          ipv6.sort()
+
+          lines = [
+              "# YouTube / Google IP",
+              "",
+          ]
+
+          for prefix in ipv4:
+              lines.append(f"IP-CIDR,{prefix},no-resolve")
+
+          for prefix in ipv6:
+              lines.append(f"IP-CIDR6,{prefix},no-resolve")
+
+          lines.append("")
+
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text("\n".join(lines), encoding="utf-8")
+
+          print(f"IPv4 prefixes: {len(ipv4)}")
+          print(f"IPv6 prefixes: {len(ipv6)}")
+          print(f"Output: {output}")
+          PY
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet -- ruleset/google-IPs.conf; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Google IP ranges changed."
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add ruleset/google-IPs.conf
+
+          git commit -m "Update Google IP ranges"
+
+          git push
